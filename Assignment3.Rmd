@@ -60,14 +60,9 @@ ADOS ~ verbalIQ
 ADOS ~ Normal(mu, sigma) 
 mu = alpha + beta*verbalIQ
 
-scaled priors
-alpha ~ Normal (15, 2 ) #this should be around the mean of ADOS?
-beta ~ Normal(-0.5, 0.5) #this should be how much I expect ADOS to be bigger/lower if I move 1 on the IQ scale
-sigma ~ Uniform(0, 50) #the sd - just keep it a weak prior
-
-
+## verbal IQ
 ```{r verbal}
-
+ 
 
 #plotting priors ☻ 
 #plot prior for alpha - ADOS 
@@ -83,25 +78,7 @@ curve( dnorm( x , 0 , 50) , from=-150 , to=150 )
 #a weak uniform prior
 
 
-plot(y=one$ADOS, x=one$verbalIQ_s)
-#does this make any sense if one of the variables is standardized??
-
-
-# # fit model
-# model <- map(
-#   alist(
-#     ADOS ~ dnorm( mu , sigma ) ,
-#     mu <- a + b*verbalIQ ,
-#     a ~ dnorm( 15 , 2 ) ,
-#     b ~ dnorm( 0 , 0.5 ) ,
-#     sigma ~ dunif( 0 , 50 )
-#   ) ,  data=one )
-# 
-# 
-# #output with variance-covariance matrix
-# precis( model , corr=TRUE ) #big corr (0.9) between a and b, use standardized
-
-
+#using a negative prior
 # fit model
 model_v <- map(
   alist(
@@ -113,8 +90,25 @@ model_v <- map(
   ) ,  data=one )
 
 
+
+#using a conservative prior 
+  # fit model
+model_v_reg <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*verbalIQ_s ,
+    a ~ dnorm( 15 , 2 ) ,
+    b ~ dnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 5 )
+  ) ,  data=one )
+
+  #compare
+compare(model_v, model_v_reg)
+# conservative prior is better
+
+
 #output with variance-covariance matrix
-precis( model_v , corr=TRUE ) 
+precis( model_v_reg , corr=TRUE ) 
 
 
 ```
@@ -123,7 +117,7 @@ Visualize
 
 ```{r prior+post}
 #plotting the priors against the posteriors
-post = extract.samples( model_v , n=1e4 )
+post = extract.samples( model_v_reg , n=1e4 )
 dist_a= data.frame(poste= post$a, prior= rnorm(1e4, 15, 2)) #distribution of alpha (posterior and prior)
 
 ggplot(data= dist_a)+ 
@@ -132,8 +126,8 @@ ggplot(data= dist_a)+
   labs(x="data", y="density")
 
 
-post = extract.samples( model_v , n=1e4 )
-dist_b= data.frame(poste= post$b, prior= rnorm(1e4, 0 , 0.5)) #distribution of alpha (posterior and prior)
+post = extract.samples( model_v_reg , n=1e4 )
+dist_b= data.frame(poste= post$b, prior= rnorm(1e4, 0 , 1)) #distribution of beta (posterior and prior)
 
 ggplot(data= dist_b)+ 
   geom_line(aes(poste), stat= "density") +
@@ -145,7 +139,7 @@ ggplot(data= dist_b)+
 ```{r plot verbal}
 
 #looking at the predictions of the model when verbal IQ is 0
-post <- extract.samples( model_v , n=2000 )
+post <- extract.samples( model_v_reg , n=2000 )
 at_zero= post$a + post$b * 0
 dens( at_zero , col=rangi2 , lwd=2)
 HPDI( at_zero , prob=0.89 )
@@ -154,11 +148,11 @@ HPDI( at_zero , prob=0.89 )
 verbalIQ_seq <- seq( from= min(one$verbalIQ_s) , to=max(one$verbalIQ_s) , length.out=1000 ) 
 pred=data.frame(verbalIQ_s=verbalIQ_seq)
 
-mu <- link( model_v , n=1e4, data= pred)
+mu <- link( model_v_reg , n=1e4, data= pred)
 #link: distribution of mu for each unique value on the x axis (defined in verbalIQ_seq)
 mu.mean <- apply( mu , 2 , mean )
 mu.PI <- apply( mu , 2 , PI , prob=0.89 ) #small shaded area, uncertainty of mu
-sim_ADOS <- sim( model_v , data=pred ) #creating new outcome values based on the model and using my sequence
+sim_ADOS <- sim( model_v_reg , data=pred ) #creating new outcome values based on the model and using my sequence
 ADOS_PI <- apply( sim_ADOS , 2 , PI , prob=0.89 ) #big shaded area, uncertainty of mu + sigma 
 
 #run all the lines together
@@ -171,9 +165,10 @@ shade( ADOS_PI , verbalIQ_seq ) #big shaded area (89% of predicted values)
 
 ```
 
+##nonverbalIQ
 model:
 ADOS ~ nonverbalIQ
-```{r nonverbal}
+```{r nonverbal} 
 
 #using same priors
 
@@ -188,17 +183,33 @@ model_n <- map(
   ) ,  data=one )
 
 
+
+#using a conservative prior 
+  # fit model
+model_n_reg <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*nonverbalIQ_s ,
+    a ~ dnorm( 15 , 2 ) ,
+    b ~ dnorm( 0 , 1) ,
+    sigma ~ dunif( 0 , 5 )
+  ) ,  data=one )
+
+  #compare
+compare(model_n, model_n_reg)
+#reg prior is better
+
 #output with variance-covariance matrix
-precis( model_n , corr=TRUE ) 
+precis( model_n_reg , corr=TRUE ) 
 
 #plot
 nonverbalIQ_seq <- seq( from= min(one$nonverbalIQ_s) , to=max(one$nonverbalIQ_s) , length.out=1000 ) 
 pred=data.frame(nonverbalIQ_s=nonverbalIQ_seq)
 
-mu <- link( model_n , n=1e4, data= pred)
+mu <- link( model_n_reg , n=1e4, data= pred)
 mu.mean <- apply( mu , 2 , mean )
 mu.PI <- apply( mu , 2 , PI , prob=0.89 ) 
-sim_ADOS <- sim( model_n , data=pred ) 
+sim_ADOS <- sim( model_n_reg , data=pred ) 
 ADOS_PI <- apply( sim_ADOS , 2 , PI , prob=0.89 ) 
 
 #run all the lines together
@@ -208,6 +219,7 @@ shade( mu.PI , nonverbalIQ_seq )
 shade( ADOS_PI , nonverbalIQ_seq ) 
 ```
 
+##socialIQ
 model:
 ADOS ~ socialIQ
 ```{r social}
@@ -226,17 +238,34 @@ model_s <- map(
   ) ,  data=one )
 
 
+
+#using a conservative prior 
+  # fit model
+model_s_reg <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + b*socialIQ_s ,
+    a ~ dnorm( 15 , 2 ) ,
+    b ~ dnorm( 0 , 1 ) ,
+    sigma ~ dunif( 0 , 5 )
+  ) ,  data=one )
+
+  #compare
+compare(model_s, model_s_reg)
+#reg prior much better!
+
+
 #output with variance-covariance matrix
-precis( model_s , corr=TRUE ) 
+precis( model_s_reg , corr=TRUE ) 
 
 #plot
 socialIQ_seq <- seq( from= min(one$socialIQ_s) , to=max(one$socialIQ_s) , length.out=1000 ) 
 pred=data.frame(socialIQ_s=socialIQ_seq)
 
-mu <- link( model_s , n=1e4, data= pred)
+mu <- link( model_s_reg , n=1e4, data= pred)
 mu.mean <- apply( mu , 2 , mean )
 mu.PI <- apply( mu , 2 , PI , prob=0.89 ) 
-sim_ADOS <- sim( model_s , data=pred ) 
+sim_ADOS <- sim( model_s_reg , data=pred ) 
 ADOS_PI <- apply( sim_ADOS , 2 , PI , prob=0.89 ) 
 
 #run all the lines together
@@ -314,9 +343,9 @@ model_all <- map(
     ADOS ~ dnorm( mu , sigma ) ,
     mu <- a + bv*verbalIQ_s + bn*nonverbalIQ_s + bs*socialIQ_s,
     a ~ dnorm( 15 , 2 ) ,
-    bv ~ dnorm( -0.5 , 0.5 ) ,
-    bn ~ dnorm( -0.5 , 0.5 ) ,
-    bs ~ dnorm( -0.5 , 0.5 ) ,
+    bv ~ dnorm( 0 , 1 ) ,
+    bn ~ dnorm( 0 , 1 ) ,
+    bs ~ dnorm( 0 , 1 ) ,
     sigma ~ dunif( 0 , 50 )
   ) ,  data=one )
 
@@ -325,6 +354,12 @@ model_all <- map(
 precis(model_all) 
 
 plot(precis(model_all))
+
+#is this better than the individuals?
+
+compare(model_all, model_v_reg, model_n_reg, model_s_reg)
+
+#yes
 
 ```
 
@@ -338,6 +373,26 @@ prediction <- sim( model_all , data=one, n= 1e4, post=samples_all )
 library(bayesplot)
 ppc_dens_overlay(one$ADOS, prediction[1:150, ])
 #150 probable predictive posteriors
+
+#compare with the predictive posteriors of the single IQ models
+
+samples_all = extract.samples( model_v_reg , n=1e4 )
+
+prediction <- sim( model_v_reg , data=one, n= 1e4, post=samples_all )
+
+ppc_dens_overlay(one$ADOS, prediction[1:150, ])
+
+samples_all = extract.samples( model_n_reg , n=1e4 )
+
+prediction <- sim( model_n_reg , data=one, n= 1e4, post=samples_all )
+
+ppc_dens_overlay(one$ADOS, prediction[1:150, ])
+
+samples_all = extract.samples( model_s_reg , n=1e4 )
+
+prediction <- sim( model_s_reg , data=one, n= 1e4, post=samples_all )
+
+ppc_dens_overlay(one$ADOS, prediction[1:150, ])
 ```
 
 
@@ -362,6 +417,7 @@ i=subset(h, h$ASD == 0 & h$ADOS < 6  )
 j=subset(h, h$ASD == 1 & h$ADOS > 6  )
 
 cleaned= rbind(i, j)
+rm(i, j, h)
 
 #standardize (mean of 0, sd of 1)
 cleaned$nonverbalIQ_s=(cleaned$nonverbalIQ - mean(cleaned$nonverbalIQ)) / sd(cleaned$nonverbalIQ)
@@ -380,26 +436,16 @@ ggplot(data = cleaned) +
 
 #nonverbalIQ
 ggplot(data = cleaned) +
-  geom_point(aes(x= ADOS, y= nonverbalIQ_s)) +
-  facet_wrap(~ ASD)
+  geom_line(aes(x= ADOS), stat="density") 
 
-#verbalIQ
-ggplot(data = cleaned) +
-  geom_point(aes(x= ADOS, y= verbalIQ_s)) +
-  facet_wrap(~ ASD)
-
-
-#socialIQ
-ggplot(data = cleaned) +
-  geom_point(aes(x= ADOS, y= socialIQ_s)) +
-  facet_wrap(~ ASD)
-
+#not normally distributed anymore
 
 
 ```
 
 ```{r}
 
+#normal prior
 model_td <- map(
   alist(
     ADOS ~ dnorm( mu , sigma ) ,
@@ -408,26 +454,100 @@ model_td <- map(
     bv ~ dnorm( 0 , 1 ) ,
     bn ~ dnorm( 0 , 1) ,
     bs ~ dnorm( 0 , 1 ) ,
-    bd ~ dnorm( 0 , 5 ) , #binary variable - outcome will be the difference between TD and ASD
+    bd ~ dnorm( 0 , 5 ) , 
     sigma ~ dunif( 0 , 50 )
   ) ,  data=cleaned )
 
 
-#output with variance-covariance matrix
-precis(model_td) 
+#cauchy prior
+model_td_c <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + bv*verbalIQ_s + bn*nonverbalIQ_s + bs*socialIQ_s + bd*ASD,
+    a ~ dcauchy( 10 , 4 ) ,
+    bv ~ dnorm( 0 , 1 ) ,
+    bn ~ dnorm( 0 , 1) ,
+    bs ~ dnorm( 0 , 1 ) ,
+    bd ~ dnorm( 0 , 5 ) , 
+    sigma ~ dunif( 0 , 50 )
+  ) ,  data=cleaned )
 
-plot(precis(model_td))
+
+#uniform prior
+model_td_u <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + bv*verbalIQ_s + bn*nonverbalIQ_s + bs*socialIQ_s + bd*ASD,
+    a ~ dunif( 0 , 10 ) ,
+    bv ~ dnorm( 0 , 1 ) ,
+    bn ~ dnorm( 0 , 1) ,
+    bs ~ dnorm( 0 , 1 ) ,
+    bd ~ dnorm( 0 , 5 ) , 
+    sigma ~ dunif( 0 , 50 )
+  ) ,  data=cleaned )
+
+compare(model_td, model_td_c, model_td_u)
+
+#interactions
+#normal
+model_td_int <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + bv*verbalIQ_s*ASD + bn*nonverbalIQ_s*ASD + bs*socialIQ_s*ASD + bd*ASD,
+    a ~ dnorm( 10 , 4 ) ,
+    bv ~ dnorm( 0 , 1 ) ,
+    bn ~ dnorm( 0 , 1) ,
+    bs ~ dnorm( 0 , 1 ) ,
+    bd ~ dnorm( 0 , 5 ) , 
+    sigma ~ dunif( 0 , 50 )
+  ) ,  data=cleaned )
+
+#cauchy
+model_td_int_c <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + bv*verbalIQ_s*ASD + bn*nonverbalIQ_s*ASD + bs*socialIQ_s*ASD + bd*ASD,
+    a ~ dcauchy( 10 , 4 ) ,
+    bv ~ dnorm( 0 , 1 ) ,
+    bn ~ dnorm( 0 , 1) ,
+    bs ~ dnorm( 0 , 1 ) ,
+    bd ~ dnorm( 0 , 5 ) , 
+    sigma ~ dunif( 0 , 50 )
+  ) ,  data=cleaned )
+
+#uniform
+model_td_int_u <- map(
+  alist(
+    ADOS ~ dnorm( mu , sigma ) ,
+    mu <- a + bv*verbalIQ_s*ASD + bn*nonverbalIQ_s*ASD + bs*socialIQ_s*ASD + bd*ASD,
+    a ~ dunif( 0 , 10 ) ,
+    bv ~ dnorm( 0 , 1 ) ,
+    bn ~ dnorm( 0 , 1) ,
+    bs ~ dnorm( 0 , 1 ) ,
+    bd ~ dnorm( 0 , 5 ) , 
+    sigma ~ dunif( 0 , 50 )
+  ) ,  data=cleaned )
+
+
+compare(model_td, model_td_c, model_td_u,model_td_int, model_td_int_c, model_td_int_u)
+#interactions is best, no matter what prior
+
+#output with variance-covariance matrix
+precis(model_td_int) 
+
+plot(precis(model_td_int))
 
 ```
 
 ```{r}
-samples_td = extract.samples( model_td , n=1e4 )
+samples_td = extract.samples( model_td_int , n=1e4 )
 
-prediction <- sim( model_td , data=cleaned, n= 1e4, post=samples_td )
+prediction <- sim( model_td_int , data=cleaned, n= 1e4, post=samples_td )
 
 library(bayesplot)
 ppc_dens_overlay(cleaned$ADOS, prediction[1:150, ])
 #150 probable predictive posteriors
+
 ```
 
 
